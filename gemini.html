@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Three.js Room</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // 1. Scene 생성
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xeeeeee); // 배경색 설정
+
+        // 2. Camera 생성
+        const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+        // 카메라 위치를 방 안쪽으로 이동하고 약간 위에서 아래를 보도록 설정
+        camera.position.set(0, 1.6, 3); // x, y, z 위치 조정
+        camera.lookAt(0, 0, 0); // 원점을 바라보도록 설정
+
+        // 3. Renderer 생성
+        const renderer = new THREE.WebGLRenderer({ antialias : true });
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.body.appendChild( renderer.domElement );
+
+        // 4. OrbitControls 활성화
+        const controls = new THREE.OrbitControls( camera, renderer.domElement );
+        controls.update(); // OrbitControls 초기 업데이트
+
+        // 5. 방의 크기 정의
+        const roomWidth = 20;
+        const roomHeight = 8;
+        const roomDepth = 20;
+
+        // 6. 재질 생성 (벽, 바닥, 천장에 사용할 재질)
+        // FrontSide로 변경
+        const wallMaterial = new THREE.MeshStandardMaterial({
+            color: 0xcccccc, // 밝은 회색
+            side: THREE.FrontSide // 앞면만 보이도록 설정
+        });
+
+        // 7. 이미지 로딩 및 배치 함수 (원래 비율 유지)
+        const textureLoader = new THREE.TextureLoader();
+        const paintingWidthLimit = roomWidth / 4; // 예시: 방 너비의 1/4로 최대 너비 설정
+        const paintingHeightLimit = roomHeight / 3; // 그림 높이 제한 (일렬 배열 고려)
+        const wallOffset = 0.01; // 벽면에서의 약간의 간격
+
+        function loadAndAddPicture(url, wallName, xOffset, yOffset, zOffset, rotationY = 0) {
+            textureLoader.load(url, function (texture) {
+                const aspect = texture.image.width / texture.image.height;
+                let width = paintingWidthLimit;
+                let height = paintingWidthLimit / aspect;
+
+                if (height > paintingHeightLimit) {
+                    height = paintingHeightLimit;
+                    width = paintingHeightLimit * aspect;
+                }
+
+                const geometry = new THREE.PlaneGeometry(width, height);
+                const material = new THREE.MeshStandardMaterial({ map: texture, side: THREE.FrontSide });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(xOffset, yOffset, zOffset);
+                mesh.rotation.y = rotationY;
+                scene.add(mesh);
+            });
+        }
+
+        // 8. 각 벽면에 4개의 그림 일렬 배치
+        const imageURLs = [
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/design_art.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/campbells_soup.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/foundation_maeght.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/reve_de_viille_3.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/design_art.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/campbells_soup.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/foundation_maeght.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/reve_de_viille_3.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/design_art.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/campbells_soup.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/foundation_maeght.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/reve_de_viille_3.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/design_art.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/campbells_soup.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/foundation_maeght.jpg',
+            'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/reve_de_viille_3.jpg'
+        ];
+
+        const walls = ['back', 'left', 'right', 'front'];
+        const paintingsPerWall = 4;
+
+        walls.forEach((wallName, wallIndex) => {
+            const wallWidth = (wallName === 'left' || wallName === 'right') ? roomDepth : roomWidth;
+            const startPosition = -wallWidth / 2 + wallWidth / (paintingsPerWall * 2); // 시작 위치 조정
+            for (let i = 0; i < paintingsPerWall; i++) {
+                const paintingIndex = wallIndex * paintingsPerWall + i;
+                const xOffset = (wallName === 'left') ? -roomWidth / 2 + wallOffset :
+                                (wallName === 'right') ? roomWidth / 2 - wallOffset :
+                                startPosition + i * wallWidth / paintingsPerWall;
+                const yOffset = 0;
+                const zOffset = (wallName === 'back') ? -roomDepth / 2 + wallOffset :
+                                (wallName === 'front') ? roomDepth / 2 - wallOffset :
+                                (wallName === 'left' || wallName === 'right') ? (startPosition + i * wallWidth / paintingsPerWall) : 0;
+                const rotationY = (wallName === 'left') ? Math.PI / 2 :
+                                (wallName === 'right') ? -Math.PI / 2 :
+                                (wallName === 'front') ? Math.PI : 0;
+
+                loadAndAddPicture(
+                    imageURLs[paintingIndex],
+                    wallName,
+                    xOffset,
+                    yOffset,
+                    zOffset,
+                    rotationY
+                );
+            }
+        });
+
+        // 9. 각 면 생성 및 배치 (기존 코드 유지)
+        const floorGeometry = new THREE.PlaneGeometry(roomWidth, roomDepth);
+        const floor = new THREE.Mesh(floorGeometry, wallMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -roomHeight / 2;
+        scene.add(floor);
+
+        const ceilingGeometry = new THREE.PlaneGeometry(roomWidth, roomDepth);
+        const ceiling = new THREE.Mesh(ceilingGeometry, wallMaterial);
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.y = roomHeight / 2;
+        scene.add(ceiling);
+
+        const backWallGeometry = new THREE.PlaneGeometry(roomWidth, roomHeight);
+        const backWall = new THREE.Mesh(backWallGeometry, wallMaterial);
+        backWall.position.z = -roomDepth / 2;
+        backWall.position.y = 0;
+        scene.add(backWall);
+
+        const leftWallGeometry = new THREE.PlaneGeometry(roomDepth, roomHeight);
+        const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
+        leftWall.rotation.y = Math.PI / 2;
+        leftWall.position.x = -roomWidth / 2;
+        leftWall.position.y = 0;
+        scene.add(leftWall);
+
+        const rightWallGeometry = new THREE.PlaneGeometry(roomDepth, roomHeight);
+        const rightWall = new THREE.Mesh(rightWallGeometry, wallMaterial);
+        rightWall.rotation.y = -Math.PI / 2;
+        rightWall.position.x = roomWidth / 2;
+        rightWall.position.y = 0;
+        scene.add(rightWall);
+
+        const frontWallGeometry = new THREE.PlaneGeometry(roomWidth, roomHeight);
+        const frontWall = new THREE.Mesh(frontWallGeometry, wallMaterial);
+        frontWall.rotation.y = Math.PI;
+        frontWall.position.z = roomDepth / 2;
+        frontWall.position.y = 0;
+        scene.add(frontWall);
+
+        // 10. 조명 추가 (기존 코드 유지)
+        const ambientLight = new THREE.AmbientLight( 0xffffff, 0.6 );
+        scene.add( ambientLight );
+        const directionalLight = new THREE.DirectionalLight( 0xffffff, 0.8 );
+        directionalLight.position.set(5, 10, 7.5);
+        scene.add( directionalLight );
+
+        // 11. 애니메이션 루프 (기존 코드 유지)
+        function animate() {
+            requestAnimationFrame( animate );
+            controls.update();
+            renderer.render( scene, camera );
+        }
+        animate();
+
+        // 12. 창 크기 변경 시 처리 (기존 코드 유지)
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        });
+
+    </script>
+</body>
+</html>
