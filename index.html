@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Three.js Room with Textures</title>
+    <title>NAMI_BETA</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -212,9 +212,19 @@
         }
 
         function addLights() {
-            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-            const dLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dLight.position.set(5, 10, 7.5);
+            // 하늘색 빛과 바닥 반사빛
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+            hemiLight.position.set(0, ROOM_HEIGHT, 0);
+            scene.add(hemiLight);
+
+            // 전체 기본 밝기
+            const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambient);
+
+            // 보조 방향광 (자연스러운 그림자)
+            const dLight = new THREE.DirectionalLight(0xffffff, 0.2);
+            dLight.position.set(0, 10, 5);
+            dLight.castShadow = false;
             scene.add(dLight);
         }
 
@@ -298,4 +308,5 @@
     </script>
 </body>
 </html>
+
 
