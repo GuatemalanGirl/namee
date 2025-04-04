@@ -1,147 +1,289 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js Room with Pictures and Lights</title>
+    <meta charset="utf-8">
+    <title>NAMI_BETA</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
+        button {
+            font-size: 16px;
+            padding: 10px;
+            margin: 5px;
+        }
     </style>
 </head>
 <body>
+    <div style="position: absolute; top: 10px; left: 10px;">
+        <button id="leftButton">←</button>
+        <button id="rightButton">→</button>
+    </div>
+
     <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
     <script>
-        // 씬 생성
-        const scene = new THREE.Scene();
+        const paintingFilenames = [
+            'design_art.jpg', 'campbells_soup.jpg', 'foundation_maeght.jpg', 'reve_de_viille_3.jpg',
+            'diamond_dust_shoes.jpg', 'histoire_11.jpg', 'histoire_13.jpg', 'histoire_5.jpg',
+            'histoire_8.jpg', 'le_sarrasin.jpg', 'miro_ceret.jpg', 'reve_de_viille_3.jpg',
+            'histoire_13.jpg', 'campbells_soup.jpg', 'foundation_maeght.jpg', 'le_sarrasin.jpg'
+        ];
+        const paintingURLs = paintingFilenames.map(name =>
+            `https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/${name}`
+        );
 
-        // 카메라 생성
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        
-        // 렌더러 생성
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+        const ROOM_WIDTH = 20;
+        const ROOM_HEIGHT = 8;
+        const ROOM_DEPTH = 20;
+        const CAMERA_FOV = 75;
+        const CAMERA_NEAR = 0.1;
+        const CAMERA_FAR = 1000;
+        const INITIAL_CAMERA_POS = new THREE.Vector3(0, ROOM_HEIGHT, ROOM_DEPTH * 1.5);
+        const ZOOM_DISTANCE = 3;
+        const CAMERA_DURATION = 1000;
+        const PAINTING_WIDTH_LIMIT = ROOM_WIDTH / 4;
+        const PAINTING_HEIGHT_LIMIT = ROOM_HEIGHT / 3;
+        const PAINTING_Y_OFFSET = 0;
+        const WALL_OFFSET = 0.01;
 
-        // 바닥 만들기
-        const floorGeometry = new THREE.PlaneGeometry(20, 20);
-        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2;  // 바닥은 수평으로
-        floor.position.y = -5;  // 바닥의 위치를 아래로 설정
-        scene.add(floor);
+        let scene, camera, renderer, controls, raycaster, pointer;
+        let paintings = [];
+        let currentPaintingIndex = -1;
+        let isCameraMoving = false;
 
-        // 천장 만들기
-        const ceilingGeometry = new THREE.PlaneGeometry(20, 20);
-        const ceilingMaterial = new THREE.MeshLambertMaterial({ color: 0xcccccc });
-        const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        ceiling.rotation.x = Math.PI / 2;  // 천장은 수평으로
-        ceiling.position.y = 5;  // 천장의 위치를 위로 설정
-        scene.add(ceiling);
-
-        // 벽 만들기
-        const wallGeometry = new THREE.PlaneGeometry(20, 10);
-        const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xaaaaaa });
-
-        // 앞 벽
-        const frontWall = new THREE.Mesh(wallGeometry, wallMaterial);
-        frontWall.position.z = -10;  // 방 앞에 위치
-        scene.add(frontWall);
-
-        // 뒤 벽
-        const backWall = new THREE.Mesh(wallGeometry, wallMaterial);
-        backWall.rotation.y = Math.PI;  // 반대 방향으로 회전
-        backWall.position.z = 10;  // 방 뒤에 위치
-        scene.add(backWall);
-
-        // 왼쪽 벽
-        const leftWall = new THREE.Mesh(wallGeometry, wallMaterial);
-        leftWall.rotation.y = Math.PI / 2;  // 왼쪽으로 회전
-        leftWall.position.x = -10;  // 방 왼쪽에 위치
-        scene.add(leftWall);
-
-        // 오른쪽 벽
-        const rightWall = new THREE.Mesh(wallGeometry, wallMaterial);
-        rightWall.rotation.y = -Math.PI / 2;  // 오른쪽으로 회전
-        rightWall.position.x = 10;  // 방 오른쪽에 위치
-        scene.add(rightWall);
-
-        // 텍스처 로더 생성
         const textureLoader = new THREE.TextureLoader();
 
-        // 벽에 걸 그림
-        function addPictureToWall(wall, imageUrl, xPos, yPos, zPos) {
-            // 텍스처 로드
-            const texture = textureLoader.load(imageUrl, () => {
-                // 텍스처가 로드된 후 그림의 원래 비율을 가져옵니다
-                const aspectRatio = texture.image.width / texture.image.height;
+        async function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xFF8B79);
 
-                // 그림(액자) 만들기 - 텍스처 비율에 맞는 크기 설정
-                const geometry = new THREE.PlaneGeometry(2 * aspectRatio, 2);  // 그림 크기 비율에 맞춰
-                const material = new THREE.MeshBasicMaterial({ map: texture });
-                const picture = new THREE.Mesh(geometry, material);
+            camera = new THREE.PerspectiveCamera(CAMERA_FOV, window.innerWidth / window.innerHeight, CAMERA_NEAR, CAMERA_FAR);
+            camera.position.copy(INITIAL_CAMERA_POS);
+            camera.lookAt(0, PAINTING_Y_OFFSET, 0);
 
-                // 그림 위치 설정
-                picture.position.set(xPos, yPos, zPos);
-                wall.add(picture);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, PAINTING_Y_OFFSET, 0);
+            controls.update();
+
+            raycaster = new THREE.Raycaster();
+            pointer = new THREE.Vector2();
+
+            createRoom();
+            await placePaintings();
+            addLights();
+
+            document.getElementById('leftButton').addEventListener('click', navigateLeft);
+            document.getElementById('rightButton').addEventListener('click', navigateRight);
+            renderer.domElement.addEventListener('click', onClick);
+            window.addEventListener('resize', onResize);
+
+            animate();
+        }
+
+        function createRoom() {
+            const textures = {
+                floor: textureLoader.load('https://raw.githubusercontent.com/GuatemalanGirl/mygallery/main/textures/room6/floor6.png'),
+                ceiling: textureLoader.load('https://raw.githubusercontent.com/GuatemalanGirl/mygallery/main/textures/room6/ceiling6.png'),
+                front: textureLoader.load('https://raw.githubusercontent.com/GuatemalanGirl/mygallery/main/textures/room6/walls6.png'),
+                back: textureLoader.load('https://raw.githubusercontent.com/GuatemalanGirl/mygallery/main/textures/room6/walls6.png'),
+                left: textureLoader.load('https://raw.githubusercontent.com/GuatemalanGirl/mygallery/main/textures/room6/walls6.png'),
+                right: textureLoader.load('https://raw.githubusercontent.com/GuatemalanGirl/mygallery/main/textures/room6/wall6.png'),
+            };
+
+            const floor = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH),
+                new THREE.MeshStandardMaterial({ map: textures.floor, side: THREE.FrontSide })
+            );
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -ROOM_HEIGHT / 2;
+            scene.add(floor);
+
+            const ceiling = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH),
+                new THREE.MeshStandardMaterial({ map: textures.ceiling, side: THREE.FrontSide })
+            );
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = ROOM_HEIGHT / 2;
+            scene.add(ceiling);
+
+            const back = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_HEIGHT),
+                new THREE.MeshStandardMaterial({ map: textures.back, side: THREE.FrontSide })
+            );
+            back.position.z = -ROOM_DEPTH / 2;
+            back.position.y = PAINTING_Y_OFFSET;
+            scene.add(back);
+
+            const front = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_HEIGHT),
+                new THREE.MeshStandardMaterial({ map: textures.front, side: THREE.FrontSide })
+            );
+            front.rotation.y = Math.PI;
+            front.position.z = ROOM_DEPTH / 2;
+            front.position.y = PAINTING_Y_OFFSET;
+            scene.add(front);
+
+            const left = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_DEPTH, ROOM_HEIGHT),
+                new THREE.MeshStandardMaterial({ map: textures.left, side: THREE.FrontSide })
+            );
+            left.rotation.y = Math.PI / 2;
+            left.position.x = -ROOM_WIDTH / 2;
+            left.position.y = PAINTING_Y_OFFSET;
+            scene.add(left);
+
+            const right = new THREE.Mesh(
+                new THREE.PlaneGeometry(ROOM_DEPTH, ROOM_HEIGHT),
+                new THREE.MeshStandardMaterial({ map: textures.right, side: THREE.FrontSide })
+            );
+            right.rotation.y = -Math.PI / 2;
+            right.position.x = ROOM_WIDTH / 2;
+            right.position.y = PAINTING_Y_OFFSET;
+            scene.add(right);
+        }
+
+        async function loadAndAddPainting(url, position, rotationY, order) {
+            return new Promise((resolve, reject) => {
+                textureLoader.load(url, (texture) => {
+                    const aspect = texture.image.width / texture.image.height;
+                    let width = PAINTING_WIDTH_LIMIT;
+                    let height = width / aspect;
+                    if (height > PAINTING_HEIGHT_LIMIT) {
+                        height = PAINTING_HEIGHT_LIMIT;
+                        width = height * aspect;
+                    }
+
+                    const geo = new THREE.PlaneGeometry(width, height);
+                    const mat = new THREE.MeshStandardMaterial({ map: texture, side: THREE.FrontSide });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.copy(position);
+                    mesh.rotation.y = rotationY;
+                    mesh.userData.isPainting = true;
+                    mesh.userData.order = order;
+                    scene.add(mesh);
+                    paintings.push(mesh);
+                    resolve();
+                }, undefined, reject);
             });
         }
 
-        // 각 벽에 그림 추가
-        addPictureToWall(frontWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/design_art.jpg', -3, 0, 0.01);  // 앞 벽의 왼쪽 상단
-        addPictureToWall(frontWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/campbells_soup.jpg', 3, 0, 0.01);   // 앞 벽의 오른쪽 상단
+        async function placePaintings() {
+            const urls = paintingURLs;
+            const wallDefs = [
+                { name: 'front', axis: 'x', constVal: ROOM_DEPTH / 2 - WALL_OFFSET, width: ROOM_WIDTH, rotY: Math.PI, reverse: false },
+                { name: 'right', axis: 'z', constVal: ROOM_WIDTH / 2 - WALL_OFFSET, width: ROOM_DEPTH, rotY: -Math.PI / 2, reverse: true },
+                { name: 'back', axis: 'x', constVal: -ROOM_DEPTH / 2 + WALL_OFFSET, width: ROOM_WIDTH, rotY: 0, reverse: true },
+                { name: 'left', axis: 'z', constVal: -ROOM_WIDTH / 2 + WALL_OFFSET, width: ROOM_DEPTH, rotY: Math.PI / 2, reverse: false }
+            ];
 
-        addPictureToWall(backWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/histoire_5.jpg', -3, 0, 0.01);   // 뒤 벽의 왼쪽 상단
-        addPictureToWall(backWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/histoire_11.jpg', 3, 0, 0.01);    // 뒤 벽의 오른쪽 상단
+            const paintingsPerWall = 4;
+            let globalIndex = 0;
 
-        addPictureToWall(leftWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/reve_de_viille_3.jpg', -2, 0, 0.01);    // 왼쪽 벽의 중앙 상단
-        addPictureToWall(leftWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/foundation_maeght.jpg', 2, 0, 0.01);   // 왼쪽 벽의 중앙 하단
+            for (const wall of wallDefs) {
+                const start = -wall.width / 2 + wall.width / (paintingsPerWall * 2);
+                const spacing = wall.width / paintingsPerWall;
 
-        addPictureToWall(rightWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/miro_ceret.jpg', -2, 0, 0.01);   // 오른쪽 벽의 중앙 상단
-        addPictureToWall(rightWall, 'https://raw.githubusercontent.com/GuatemalanGirl/mygallery/refs/heads/main/paintings/diamond_dust_shoes.jpg', 2, 0, 0.01);  // 오른쪽 벽의 중앙 하단
+                for (let i = 0; i < paintingsPerWall; i++) {
+                    const position = new THREE.Vector3();
+                    const localIndex = wall.reverse ? (paintingsPerWall - 1 - i) : i;
 
-        // AmbientLight: 방 전체에 균일한 빛을 추가합니다
-        const ambientLight = new THREE.AmbientLight(0x404040, 1);  // 부드럽고 균일한 빛
-        scene.add(ambientLight);
+                    if (wall.axis === 'x') {
+                        position.x = start + localIndex * spacing;
+                        position.z = wall.constVal;
+                    } else {
+                        position.z = start + localIndex * spacing;
+                        position.x = wall.constVal;
+                    }
 
-        // DirectionalLight: 방의 일부를 비추는 강한 빛
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 5); // 빛의 위치 설정
-        scene.add(directionalLight);
+                    position.y = PAINTING_Y_OFFSET;
 
-        // SpotLight: 특정 지역을 비추는 집중된 빛
-        const spotLight = new THREE.SpotLight(0xffffff, 1);
-        spotLight.position.set(0, 5, 0);  // SpotLight 위치
-        spotLight.target.position.set(0, 0, 0); // 목표 위치 설정 (방 중앙)
-        scene.add(spotLight);
+                    await loadAndAddPainting(urls[globalIndex], position, wall.rotY, globalIndex);
+                    globalIndex++;
+                }
+            }
 
-        // 카메라 위치 설정
-        camera.position.set(0, 0, 10);
-
-        // OrbitControls 적용
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;  // 부드러운 조작을 위한 댐핑 효과
-        controls.dampingFactor = 0.25;  // 댐핑의 강도
-        controls.screenSpacePanning = false;  // 화면 회전만 허용 (기본값)
-        controls.zoomSpeed = 2; // 마우스 휠 굴릴 때 더 빠르게 줌인/줌아웃
-
-        // 애니메이션 함수
-        function animate() {
-            requestAnimationFrame(animate);
-            // OrbitControls 업데이트
-            controls.update();  // 매 프레임마다 업데이트
-            renderer.render(scene, camera);
+            paintings.sort((a, b) => a.userData.order - b.userData.order);
         }
 
-        animate();
+        function addLights() {
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const dLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dLight.position.set(5, 10, 7.5);
+            scene.add(dLight);
+        }
 
-        // 화면 크기 변경 시 카메라와 렌더러 크기 조정
-        window.addEventListener('resize', () => {
+        function onResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        }
+
+        function onClick(event) {
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const hits = raycaster.intersectObjects(paintings);
+            if (hits.length > 0) {
+                const mesh = hits[0].object;
+                currentPaintingIndex = paintings.indexOf(mesh);
+                zoomTo(mesh);
+            }
+        }
+
+        function navigateLeft() {
+            if (paintings.length === 0 || isCameraMoving) return;
+            currentPaintingIndex = (currentPaintingIndex + 1 + paintings.length) % paintings.length;
+            zoomTo(paintings[currentPaintingIndex]);
+        }
+
+        function navigateRight() {
+            if (paintings.length === 0 || isCameraMoving) return;
+            currentPaintingIndex = (currentPaintingIndex - 1 + paintings.length) % paintings.length;
+            zoomTo(paintings[currentPaintingIndex]);
+        }
+
+        function zoomTo(painting) {
+            if (!painting) return;
+            const target = painting.position.clone();
+            const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(painting.quaternion);
+            const newCamPos = target.clone().addScaledVector(forward, ZOOM_DISTANCE);
+            newCamPos.y = PAINTING_Y_OFFSET;
+
+            const startPos = camera.position.clone();
+            new TWEEN.Tween(startPos)
+                .to(newCamPos, CAMERA_DURATION)
+                .easing(TWEEN.Easing.Cubic.InOut)
+                .onStart(() => {
+                    isCameraMoving = true;
+                    controls.enabled = false;
+                })
+                .onUpdate(() => {
+                    camera.position.copy(startPos);
+                    camera.lookAt(target);
+                })
+                .onComplete(() => {
+                    isCameraMoving = false;
+                    controls.enabled = true;
+                    controls.target.copy(target);
+                    controls.update();
+                })
+                .start();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            TWEEN.update();
+            renderer.render(scene, camera);
+        }
+
+        init();
     </script>
 </body>
 </html>
+
