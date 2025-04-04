@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>NAMI_BETA</title>
+    <title>Three.js Room with Textures</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -250,28 +250,40 @@
 
         function zoomTo(painting) {
             if (!painting) return;
+
             const target = painting.position.clone();
             const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(painting.quaternion);
             const newCamPos = target.clone().addScaledVector(forward, ZOOM_DISTANCE);
             newCamPos.y = PAINTING_Y_OFFSET;
 
             const startPos = camera.position.clone();
-            new TWEEN.Tween(startPos)
+            const startLook = controls.target.clone();
+            const endLook = target.clone();
+
+            let camTween = { ...startPos };
+            let lookTween = { ...startLook };
+
+            isCameraMoving = true;
+            controls.enabled = false;
+
+            new TWEEN.Tween(camTween)
                 .to(newCamPos, CAMERA_DURATION)
                 .easing(TWEEN.Easing.Cubic.InOut)
-                .onStart(() => {
-                    isCameraMoving = true;
-                    controls.enabled = false;
-                })
                 .onUpdate(() => {
-                    camera.position.copy(startPos);
-                    camera.lookAt(target);
+                    camera.position.set(camTween.x, camTween.y, camTween.z);
+                })
+                .start();
+
+            new TWEEN.Tween(lookTween)
+                .to(endLook, CAMERA_DURATION)
+                .easing(TWEEN.Easing.Cubic.InOut)
+                .onUpdate(() => {
+                    controls.target.set(lookTween.x, lookTween.y, lookTween.z);
+                    controls.update();
                 })
                 .onComplete(() => {
                     isCameraMoving = false;
                     controls.enabled = true;
-                    controls.target.copy(target);
-                    controls.update();
                 })
                 .start();
         }
