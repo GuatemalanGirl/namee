@@ -69,9 +69,8 @@
     #infoModal {
       display: none;
       position: fixed;
-      top: 50%;
-      right: 5%;
-      transform: translate(-50%, -50%);
+      top: 10%;
+      right: 10%;
       background-color: rgba(255, 255, 255, 0.9);
       border-radius: 20px;
       padding: 20px;
@@ -166,7 +165,7 @@
 
   <div id="instructionOverlay" onclick="hideInstructions()">
     <div class="instructionContent">
-      <h2>나만의 미술관 관람 안내</h2>
+      <h2>나만의미술관 관람 안내</h2>
       <ul>
         <li>🖱 마우스를 드래그하여 시점 회전</li>
         <li>← / → 버튼으로 작품 넘기기</li>
@@ -244,8 +243,8 @@
       const minDuration = 1500;
       const remaining = Math.max(0, minDuration - elapsed);
 
-      document.getElementById('loadingScreen').classList.add('hidden');
-      // 아래에 조작법 창도 띄워줄 거임
+      //document.getElementById('loadingScreen').classList.add('hidden');
+      // 아래에 조작법 창
       setTimeout(() => {
         document.getElementById('loadingScreen').classList.add('hidden');
         showInstructions(); // ✅ 바로 조작법 오버레이 띄우기
@@ -317,8 +316,20 @@
           else { pos.z = start + localIndex * spacing; pos.x = wall.constVal; }
           pos.y = PAINTING_Y_OFFSET;
 
-          await loadAndAddPainting(paintingsData[globalIndex], pos, wall.rotY);
+          const painting = await loadAndAddPainting(paintingsData[globalIndex], pos, wall.rotY);
           globalIndex++;
+
+          // 핀 조명 추가
+          const spotLight = new THREE.SpotLight(0xffffff, 0.8); // 색상, 강도
+          spotLight.position.set(painting.position.x, painting.position.y + PAINTING_HEIGHT_LIMIT * 1.5, painting.position.z); // 그림 약간 위
+          spotLight.target = painting; // 조명의 타겟을 그림으로 설정
+          spotLight.angle = Math.PI / 10; // 조명 각도
+          spotLight.penumbra = 0.1; // 감쇠 효과
+          spotLight.decay = 2; // 거리 감쇠
+          spotLight.distance = ROOM_HEIGHT * 2; // 최대 조명 거리
+
+          scene.add(spotLight);
+          scene.add(spotLight.target); // 타겟도 씬에 추가해야 함
         }
       }
     }
@@ -343,7 +354,7 @@
           mesh.userData = { isPainting: true, data };
           scene.add(mesh);
           paintings.push(mesh);
-          resolve();
+          resolve(mesh);
         }, undefined, reject);
       });
     }
