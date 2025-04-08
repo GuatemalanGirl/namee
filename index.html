@@ -131,13 +131,13 @@
       cursor: pointer;
     }
 
-.instructionContent {
-  background-color: rgba(255, 255, 255, 0.1);
-  padding: 40px;
-  border-radius: 20px;
-  font-size: 24px;
-  max-width: 600px;
-}
+    .instructionContent {
+      background-color: rgba(255, 255, 255, 0.1);
+      padding: 40px;
+      border-radius: 20px;
+      font-size: 24px;
+      max-width: 600px;
+    }
 
 
 
@@ -222,6 +222,9 @@
       camera.lookAt(0, PAINTING_Y_OFFSET, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
+      //renderer.physicallyCorrectLights = true; //사실적인
+      //renderer.toneMapping = THREE.ACESFilmicToneMapping; //사실적인
+      //renderer.toneMappingExposure = 1.2; //사실적인
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
@@ -374,18 +377,12 @@
       if (isCameraMoving || paintings.length === 0) return;
       currentPaintingIndex = (currentPaintingIndex + 1) % paintings.length;
       zoomTo(paintings[currentPaintingIndex]);
-      if (document.getElementById('infoModal').style.display === 'block') {
-        setTimeout(showInfo, CAMERA_DURATION + 50); // 카메라 이동 후 info 업데이트
-      }
     }
 
     function navigateRight() {
       if (isCameraMoving || paintings.length === 0) return;
       currentPaintingIndex = (currentPaintingIndex - 1 + paintings.length) % paintings.length;
       zoomTo(paintings[currentPaintingIndex]);
-      if (document.getElementById('infoModal').style.display === 'block') {
-        setTimeout(showInfo, CAMERA_DURATION + 50); // 카메라 이동 후 info 업데이트
-      }
     }
 
     function zoomTo(painting) {
@@ -417,6 +414,10 @@
           isCameraMoving = false;
           controls.enabled = true;
           isZoomedIn = true;
+          // 모달이 열려있으면 여기서 정보 업데이트
+          if (document.getElementById('infoModal').style.display === 'block') {
+              showInfo();
+          }
         }).start();
     }
 
