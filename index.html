@@ -243,7 +243,7 @@
 
       // 최소 1.5초는 로딩 보여주기
       const elapsed = Date.now() - start;
-      const minDuration = 1500;
+      const minDuration = 1000;
       const remaining = Math.max(0, minDuration - elapsed);
 
       //document.getElementById('loadingScreen').classList.add('hidden');
@@ -273,7 +273,11 @@
         right: textureLoader.load('https://raw.githubusercontent.com/GuatemalanGirl/mygallery/main/textures/room6/wall6.png'),
       };
 
-      const makeWall = (geometry, material, position, rotation) => {
+      const makeWall = (geometry, material, position, rotation, shouldFlipNormal = false) => {
+        if (shouldFlipNormal) {
+            geometry.scale(-1, 1, 1); // X축 기준 법선 반전 (필요에 따라 Y, Z 변경 가능)
+        }
+
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.copy(position);
         mesh.rotation.copy(rotation);
@@ -281,11 +285,11 @@
       };
 
       makeWall(new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH), new THREE.MeshStandardMaterial({ map: textures.floor }), new THREE.Vector3(0, -ROOM_HEIGHT / 2, 0), new THREE.Euler(-Math.PI / 2, 0, 0));
-      makeWall(new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH), new THREE.MeshStandardMaterial({ map: textures.ceiling }), new THREE.Vector3(0, ROOM_HEIGHT / 2, 0), new THREE.Euler(Math.PI / 2, 0, 0));
+      makeWall(new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH), new THREE.MeshStandardMaterial({ map: textures.ceiling }), new THREE.Vector3(0, ROOM_HEIGHT / 2, 0), new THREE.Euler(-Math.PI / 2, 0, 0), true);
       makeWall(new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_HEIGHT), new THREE.MeshStandardMaterial({ map: textures.back }), new THREE.Vector3(0, PAINTING_Y_OFFSET, -ROOM_DEPTH / 2), new THREE.Euler(0, 0, 0));
-      makeWall(new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_HEIGHT), new THREE.MeshStandardMaterial({ map: textures.front }), new THREE.Vector3(0, PAINTING_Y_OFFSET, ROOM_DEPTH / 2), new THREE.Euler(0, Math.PI, 0));
+      makeWall(new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_HEIGHT), new THREE.MeshStandardMaterial({ map: textures.front }), new THREE.Vector3(0, PAINTING_Y_OFFSET, ROOM_DEPTH / 2), new THREE.Euler(0, 0, 0), true);
       makeWall(new THREE.PlaneGeometry(ROOM_DEPTH, ROOM_HEIGHT), new THREE.MeshStandardMaterial({ map: textures.left }), new THREE.Vector3(-ROOM_WIDTH / 2, PAINTING_Y_OFFSET, 0), new THREE.Euler(0, Math.PI / 2, 0));
-      makeWall(new THREE.PlaneGeometry(ROOM_DEPTH, ROOM_HEIGHT), new THREE.MeshStandardMaterial({ map: textures.right }), new THREE.Vector3(ROOM_WIDTH / 2, PAINTING_Y_OFFSET, 0), new THREE.Euler(0, -Math.PI / 2, 0));
+      makeWall(new THREE.PlaneGeometry(ROOM_DEPTH, ROOM_HEIGHT), new THREE.MeshStandardMaterial({ map: textures.right }), new THREE.Vector3(ROOM_WIDTH / 2, PAINTING_Y_OFFSET, 0), new THREE.Euler(0, Math.PI / 2, 0), true);
     }
 
     function addLights() {
@@ -321,18 +325,6 @@
 
           const painting = await loadAndAddPainting(paintingsData[globalIndex], pos, wall.rotY);
           globalIndex++;
-
-          // 핀 조명 추가
-          const spotLight = new THREE.SpotLight(0xffffff, 0.8); // 색상, 강도
-          spotLight.position.set(painting.position.x, painting.position.y + PAINTING_HEIGHT_LIMIT * 1.5, painting.position.z); // 그림 약간 위
-          spotLight.target = painting; // 조명의 타겟을 그림으로 설정
-          spotLight.angle = Math.PI / 10; // 조명 각도
-          spotLight.penumbra = 0.1; // 감쇠 효과
-          spotLight.decay = 2; // 거리 감쇠
-          spotLight.distance = ROOM_HEIGHT * 2; // 최대 조명 거리
-
-          scene.add(spotLight);
-          scene.add(spotLight.target); // 타겟도 씬에 추가해야 함
         }
       }
     }
@@ -350,7 +342,7 @@
           }
 
           const geo = new THREE.PlaneGeometry(width, height);
-          const mat = new THREE.MeshStandardMaterial({ map: texture });
+          const mat = new THREE.MeshBasicMaterial({ map: texture }); // *법선 뒤집힘 이슈로 standard에서 basic으로 변경*
           const mesh = new THREE.Mesh(geo, mat);
           mesh.position.copy(position);
           mesh.rotation.y = rotationY;
@@ -474,3 +466,4 @@
   </script>
 </body>
 </html>
+
